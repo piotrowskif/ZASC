@@ -7,6 +7,9 @@ author:
 date: 2026-09-10
 format: 
   html:
+    embed-resources: true
+    output-file: "ZASC_report.html"
+    output-dir: "docs"
     theme: default
     toc: true
     lang: pl
