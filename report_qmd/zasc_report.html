@@ -1,0 +1,2340 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="pl" xml:lang="pl"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.18">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Filip Piotrowski">
+<meta name="author" content="Marcel Marszałek">
+
+<title>Analiza porównawcza ryzyka w modelach GARCH</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="zasc_report_files/libs/clipboard/clipboard.min.js"></script>
+<script src="zasc_report_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="zasc_report_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="zasc_report_files/libs/quarto-html/popper.min.js"></script>
+<script src="zasc_report_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="zasc_report_files/libs/quarto-html/anchor.min.js"></script>
+<link href="zasc_report_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="zasc_report_files/libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="zasc_report_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="zasc_report_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="zasc_report_files/libs/bootstrap/bootstrap-215b371544c282197b31c8aa00ce3677.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Spis treści</h2>
+   
+  <ul>
+  <li><a href="#wprowadzenie" id="toc-wprowadzenie" class="nav-link active" data-scroll-target="#wprowadzenie"><span class="header-section-number">1</span> Wprowadzenie</a></li>
+  <li><a href="#zbiór-danych-i-konstrukcja-portfela" id="toc-zbiór-danych-i-konstrukcja-portfela" class="nav-link" data-scroll-target="#zbiór-danych-i-konstrukcja-portfela"><span class="header-section-number">2</span> Zbiór danych i konstrukcja portfela</a></li>
+  <li><a href="#eksploracyjna-analiza-danych" id="toc-eksploracyjna-analiza-danych" class="nav-link" data-scroll-target="#eksploracyjna-analiza-danych"><span class="header-section-number">3</span> Eksploracyjna analiza danych</a>
+  <ul class="collapse">
+  <li><a href="#składniki-portfela" id="toc-składniki-portfela" class="nav-link" data-scroll-target="#składniki-portfela"><span class="header-section-number">3.1</span> Składniki portfela</a></li>
+  <li><a href="#statystyki-portfela-ważonej-stopy-zwrotu" id="toc-statystyki-portfela-ważonej-stopy-zwrotu" class="nav-link" data-scroll-target="#statystyki-portfela-ważonej-stopy-zwrotu"><span class="header-section-number">3.2</span> Statystyki portfela (ważonej stopy zwrotu)</a></li>
+  </ul></li>
+  <li><a href="#wstępna-diagnostyka" id="toc-wstępna-diagnostyka" class="nav-link" data-scroll-target="#wstępna-diagnostyka"><span class="header-section-number">4</span> Wstępna diagnostyka</a>
+  <ul class="collapse">
+  <li><a href="#rozkład-zmiennej-modelowanej" id="toc-rozkład-zmiennej-modelowanej" class="nav-link" data-scroll-target="#rozkład-zmiennej-modelowanej"><span class="header-section-number">4.1</span> Rozkład zmiennej modelowanej</a></li>
+  <li><a href="#stacjonarność" id="toc-stacjonarność" class="nav-link" data-scroll-target="#stacjonarność"><span class="header-section-number">4.2</span> Stacjonarność</a></li>
+  <li><a href="#autokorelacja-stóp-zwrotu" id="toc-autokorelacja-stóp-zwrotu" class="nav-link" data-scroll-target="#autokorelacja-stóp-zwrotu"><span class="header-section-number">4.3</span> Autokorelacja stóp zwrotu</a></li>
+  <li><a href="#warunkowa-heteroskedastyczność" id="toc-warunkowa-heteroskedastyczność" class="nav-link" data-scroll-target="#warunkowa-heteroskedastyczność"><span class="header-section-number">4.4</span> Warunkowa heteroskedastyczność</a></li>
+  </ul></li>
+  <li><a href="#specyfikacja-modeli-garch-in-sample" id="toc-specyfikacja-modeli-garch-in-sample" class="nav-link" data-scroll-target="#specyfikacja-modeli-garch-in-sample"><span class="header-section-number">5</span> Specyfikacja modeli GARCH (<em>in-sample</em>)</a></li>
+  <li><a href="#estymacja-in-sample" id="toc-estymacja-in-sample" class="nav-link" data-scroll-target="#estymacja-in-sample"><span class="header-section-number">6</span> Estymacja <em>in-sample</em></a></li>
+  <li><a href="#prognozowanie-value-at-risk-out-of-sample" id="toc-prognozowanie-value-at-risk-out-of-sample" class="nav-link" data-scroll-target="#prognozowanie-value-at-risk-out-of-sample"><span class="header-section-number">7</span> Prognozowanie <em>Value-at-Risk</em> (<em>out-of-sample</em>)</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Analiza porównawcza ryzyka w modelach GARCH</h1>
+</div>
+
+
+<div class="quarto-title-meta-author">
+  <div class="quarto-title-meta-heading">Autorzy</div>
+  <div class="quarto-title-meta-heading">Afiliacja</div>
+  
+    <div class="quarto-title-meta-contents">
+    <p class="author">Filip Piotrowski </p>
+  </div>
+  <div class="quarto-title-meta-contents">
+        <p class="affiliation">
+            Wydział Nauk Ekonomicznych UW
+          </p>
+      </div>
+    <div class="quarto-title-meta-contents">
+    <p class="author">Marcel Marszałek </p>
+  </div>
+  <div class="quarto-title-meta-contents">
+      </div>
+  </div>
+
+<div class="quarto-title-meta">
+
+      
+    <div>
+    <div class="quarto-title-meta-heading">Opublikowano</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">10 września 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<div class="cell">
+<style type="text/css">
+p {
+  text-align: justify
+}
+</style>
+</div>
+<!-- quarto render report_qmd/zasc_report.qmd --to pdf -->
+<section id="wprowadzenie" class="level1" data-number="1">
+<h1 data-number="1"><span class="header-section-number">1</span> Wprowadzenie</h1>
+<p>Pomiar ryzyka na rynku kryptowalut stanowi wyzwanie odmienne od klasycznych rynków finansowych. Zmienność jest tu wielokrotnie wyższa, obrót odbywa się w trybie ciągłym siedem dni w tygodniu, a struktura rynku pozostaje rozproszona między dziesiątkami giełd o zróżnicowanej płynności. Standardowe miary ryzyka oparte na założeniu stałej wariancji są w tych warunkach nieadekwatne, co czyni modele warunkowej heteroskedastyczności naturalnym narzędziem analizy.</p>
+<p>Celem badania jest porównanie, w jakim stopniu wybór specyfikacji z rodziny GARCH wpływa na oszacowania warunkowej wariancji portfela kryptowalutowego oraz na jakość wynikających z nich prognoz <em>Value-at-Risk</em>. Praca składa się z części poświęconej danym i konstrukcji portfela, wstępnej diagnostyki szeregu, estymacji i porównania modeli w okresie <em>in-sample</em>, oceny prognoz VaR w okresie <em>out-of-sample</em> oraz analizy wrażliwości wyników na przyjęte założenia.</p>
+</section>
+<section id="zbiór-danych-i-konstrukcja-portfela" class="level1" data-number="2">
+<h1 data-number="2"><span class="header-section-number">2</span> Zbiór danych i konstrukcja portfela</h1>
+<p>Przedmiotem analizy jest portfel czterech kryptowalut: Filecoin (FIL), Mina (MINA), MX Token (MX) oraz Prom (PROM). Wybór aktywów został dokonany na podstawie pierwszych liter imion i nazwisk autorów (czyli: F, P, M, M), tak aby kapitalizacja rynkowa kryptowalut była tego samego rzędu wielkości. Dane dzienne dotyczące cen oraz kapitalizacji rynkowej zostały pobrane za okres od 1 czerwca 2021 r. do 8 września 2026 r. (1925 obserwacji) z serwisu CoinMarketCap za pośrednictwem pakietu <code>crypto2</code>.</p>
+<p>Dla każdej kryptowaluty wyznaczono dzienną prostą stopę zwrotu zgodnie ze wzorem:</p>
+<p><span class="math display">\[
+r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}}-1
+\]</span> gdzie <span class="math inline">\(P_{i,t}\)</span> oznacza cenę zamknięcia kryptowaluty <span class="math inline">\(i\)</span> w dniu <span class="math inline">\(t\)</span>.</p>
+<p>Następnie skonstruowano portfel ważony kapitalizacją rynkową. Udział kryptowaluty <span class="math inline">\(i\)</span> w portfelu w dniu <span class="math inline">\(t\)</span> określono jako</p>
+<p><span class="math display">\[
+w_{i,t}= \frac{MC_{i,t}} {\sum_{j=1}^{4}MC_{j,t}}
+\]</span></p>
+<p>gdzie <span class="math inline">\(MC_{i,t}\)</span> oznacza kapitalizację rynkową danego aktywa. Przy obliczaniu dziennej stopy zwrotu portfela wykorzystano wagi opóźnione o jeden dzień, dzięki czemu stopa zwrotu z dnia <span class="math inline">\(t\)</span> nie wykorzystuje informacji o kapitalizacji rynkowej obserwowanej dopiero na koniec tego samego dnia. Ostatecznie stopa zwrotu portfela została wyznaczona jako</p>
+<p><span class="math display">\[
+r_{p,t}=\sum_{i=1}^{4} w_{i,t-1}\times r_{i,t}
+\]</span></p>
+<p>Szereg czasowy dziennych stóp zwrotu z portfela podzielono na dwie części:</p>
+<ul>
+<li>Próba ucząca (<em>in-sample</em>): obserwacje do 31 grudnia 2025 r. (1674 obserwacje - 87% całej próby)</li>
+<li>Próba testowa (<em>out-of-sample</em>): obserwacje od 1 stycznia 2026 r. (251 obserwacji - 13% całej próby)</li>
+</ul>
+</section>
+<section id="eksploracyjna-analiza-danych" class="level1" data-number="3">
+<h1 data-number="3"><span class="header-section-number">3</span> Eksploracyjna analiza danych</h1>
+<section id="składniki-portfela" class="level2" data-number="3.1">
+<h2 data-number="3.1" class="anchored" data-anchor-id="składniki-portfela"><span class="header-section-number">3.1</span> Składniki portfela</h2>
+<p>Na rysunku <a href="#fig-time-series-eda" class="quarto-xref">1</a> przedstawiono zmiany cen zamknięcia, kapitalizacji rynkowej oraz wag poszczególnych kryptowalut w czasie. Filecoin charakteryzuje się zdecydowanie największą kapitalizacją rynkową przez większość analizowanego okresu, co przekłada się na jego dominujący udział w portfelu. Udział ten pozostaje na ogół wyraźnie większy niż udziały pozostałych trzech aktywów, choć zmienia się w czasie. W szczególności widoczne są okresy, w których udział Miny lub MX Token zwiększa się kosztem Filecoina. Zmienność udziałów wskazuje, że konstrukcja portfela nie prowadzi do stałych wag, lecz pozwala na bieżąco odzwierciedlać względną wielkość poszczególnych aktywów.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-time-series-eda" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-time-series-eda-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-time-series-eda-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-time-series-eda-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;1: Waga, kapitalizacja rynkowa i cena zamknięcia 4 wybranych kryptowalut
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Histogramy przedstawione na rysunku <a href="#fig-4-crypto-hist" class="quarto-xref">2</a> wskazują, że rozkłady wszystkich aktywów są skoncentrowane wokół zera. Zawarte pod histogramami wykresy dywanowe (ang. <em>rug plot</em>) ilustrują pojedyncze obserwacje, świadcząc o występowaniu obserwacji odstających. Rozkłady są więc wyraźnie bardziej skoncentrowane w centrum i jednocześnie mają relatywnie długie ogony niż sugerowałby rozkład normalny.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-4-crypto-hist" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-4-crypto-hist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-4-crypto-hist-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-4-crypto-hist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;2: Histogramy stóp zwrotu 4 wybranych kryptowalut
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="statystyki-portfela-ważonej-stopy-zwrotu" class="level2" data-number="3.2">
+<h2 data-number="3.2" class="anchored" data-anchor-id="statystyki-portfela-ważonej-stopy-zwrotu"><span class="header-section-number">3.2</span> Statystyki portfela (ważonej stopy zwrotu)</h2>
+<p>Podstawowe statystyki dziennych stóp zwrotu portfela przedstawia poniższe zestawienie.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>      Min.    1st Qu.     Median       Mean    3rd Qu.       Max. 
+-0.2655978 -0.0253703 -0.0004562 -0.0008973  0.0224418  0.5404989 </code></pre>
+</div>
+</div>
+<p>Średnia dzienna stopa zwrotu wynosi −0,09 procent, co w skali całego okresu przekłada się na istotny spadek wartości portfela i odzwierciedla przecenę Filecoina. Rozstęp międzykwartylowy sięga blisko 4,8 punktu procentowego dziennie, co obrazuje skalę zmienności charakterystyczną dla tej klasy aktywów.</p>
+<p><a href="#fig-r-time-series" class="quarto-xref">Rysunek&nbsp;3</a> przedstawia szereg stóp zwrotu portfela oraz ich kwadratów, z zaznaczonym momentem podziału próby. Oba wykresy jednoznacznie wskazują na występowanie okresów o podwyższonej i obniżonej zmienności, co sugeruje zjawisko grupowania wariancji. Stanowi to pierwszą przesłankę do zastosowania modeli klasy GARCH.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-r-time-series" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-r-time-series-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-r-time-series-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-r-time-series-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;3: Przebieg w czasie stóp zwrotu portfela oraz ich kwadratów
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section id="wstępna-diagnostyka" class="level1" data-number="4">
+<h1 data-number="4"><span class="header-section-number">4</span> Wstępna diagnostyka</h1>
+<p>Aby zweryfikować zasadność zastosowania modeli z rodziny GARCH, przeprowadzono szereg testów statystycznych. Wszystkie poniższe testy zostały wykonane wyłącznie na próbie uczącej (<em>in-sample</em>).</p>
+<section id="rozkład-zmiennej-modelowanej" class="level2" data-number="4.1">
+<h2 data-number="4.1" class="anchored" data-anchor-id="rozkład-zmiennej-modelowanej"><span class="header-section-number">4.1</span> Rozkład zmiennej modelowanej</h2>
+<p>Na wykresie <a href="#fig-r-dist" class="quarto-xref">4</a> przedstawiono empiryczną funkcję gęstości wyestymowaną za pomocą <em>kernel density estimation</em>, wraz z nałożonym teoretycznym rozkładem normalnym (czerwona linia). Rozkład stóp zwrotu jest silnie skupiony wokół zera, jednak widoczne są wyraźne obserwacje odstające oraz grubsze ogony niż w przypadku rozkładu normalnego, co sugeruje leptokurtyczność.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-r-dist" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-r-dist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-r-dist-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-r-dist-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;4: Rozkład empiryczny stóp zwrotu portfela
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Wniosek ten został dodatkowo potwierdzony testem Jarque-Bera:</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Jarque Bera Test
+
+data:  r_train
+X-squared = 11106, df = 2, p-value &lt; 2.2e-16</code></pre>
+</div>
+</div>
+<p>Hipoteza zerowa o normalności rozkładu została zatem zdecydowanie odrzucona. Wynik ten wskazuje, że przy modelowaniu stóp zwrotu nie należy zakładać bezwarunkowego rozkładu normalnego bez dodatkowego uzasadnienia. W szczególności obserwowana obecność grubych ogonów jest istotna z punktu widzenia dalszego modelowania ryzyka oraz estymacji Value-at-Risk.</p>
+</section>
+<section id="stacjonarność" class="level2" data-number="4.2">
+<h2 data-number="4.2" class="anchored" data-anchor-id="stacjonarność"><span class="header-section-number">4.2</span> Stacjonarność</h2>
+<p>W kolejnym kroku zbadano stacjonarność szeregu stóp zwrotu. W rozszerzonym teście Dickey-Fullera na poziomie 5% odrzucono hipotezę zerową o obecności pierwiastka jednostkowego na rzecz hipotezy o stacjonarności szeregu.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Augmented Dickey-Fuller Test
+
+data:  r_train
+Dickey-Fuller = -11.373, Lag order = 11, p-value = 0.01
+alternative hypothesis: stationary</code></pre>
+</div>
+</div>
+<p>Uzupełniająco przeprowadzono test KPSS: <em>p-value</em> = 0.1 nie daje podstaw do odrzucenia hipotezy zerowej o stacjonarności szeregu.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    KPSS Test for Level Stationarity
+
+data:  r_train
+KPSS Level = 0.086451, Truncation lag parameter = 8, p-value = 0.1</code></pre>
+</div>
+</div>
+<p>Wyniki obu testów nie wskazują na problem niestacjonarności stóp zwrotu, co uzasadnia dalsze modelowanie bez konieczności dodatkowego różnicowania analizowanego szeregu.</p>
+</section>
+<section id="autokorelacja-stóp-zwrotu" class="level2" data-number="4.3">
+<h2 data-number="4.3" class="anchored" data-anchor-id="autokorelacja-stóp-zwrotu"><span class="header-section-number">4.3</span> Autokorelacja stóp zwrotu</h2>
+<p>Funkcja ACF stóp zwrotu (<a href="#fig-r-acf" class="quarto-xref">Rysunek&nbsp;5</a>) portfela nie wykazuje systematycznego wzorca. Poza opóźnieniem zerowym autokorelacje są na ogół niewielkie i w większości mieszczą się w granicach wyznaczonych przez przedziały ufności.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-r-acf" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-r-acf-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-r-acf-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-r-acf-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;5: Funkcja autokorelacji stóp zwrotu
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Test Ljunga-Boxa nie pozwala odrzucić hipotezy o braku autokorelacji na standardowym poziomie istotności 5%. Oznacza to, że nie ma silnych dowodów na występowanie systematycznej zależności liniowej pomiędzy kolejnymi stopami zwrotu. Z punktu widzenia dalszego modelowania sugeruje to, że dynamika średniej może być stosunkowo prosta i nie wymaga rozbudowanej struktury ARMA.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Box-Ljung test
+
+data:  r_train
+X-squared = 16.351, df = 10, p-value = 0.09001</code></pre>
+</div>
+</div>
+</section>
+<section id="warunkowa-heteroskedastyczność" class="level2" data-number="4.4">
+<h2 data-number="4.4" class="anchored" data-anchor-id="warunkowa-heteroskedastyczność"><span class="header-section-number">4.4</span> Warunkowa heteroskedastyczność</h2>
+<p>Najważniejszym krokiem przed estymacją modeli GARCH jest udowodnienie zjawiska grupowania wariancji (skupień zmienności). W tym celu obliczono funkcję ACF kwadratów stóp zwrotu (<a href="#fig-r-acf2" class="quarto-xref">Rysunek&nbsp;6</a>). Współczynnik dla pierwszego opóźnienia wyraźnie przekracza granice przedziału ufności, a istotne wartości pojawiają się również przy wyższych opóźnieniach. Wskazuje to na obecność zależności w zmienności.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-r-acf2" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-r-acf2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-r-acf2-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-r-acf2-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;6: Funkcja autokorelacji kwadratów stóp zwrotu
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+<p>Wynik ten został potwierdzony testem Boxa-Ljunga zastosowanym do kwadratów stóp zwrotu. <em>P-value</em> bliskie 0 pozwala odrzucić hipotezę zerową o braku autokorelacji kwadratów stóp zwrotu.</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Box-Ljung test
+
+data:  r_train^2
+X-squared = 54.338, df = 10, p-value = 4.197e-08</code></pre>
+</div>
+</div>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    ARCH LM-test; Null hypothesis: no ARCH effects
+
+data:  r_train
+Chi-squared = 51.681, df = 10, p-value = 1.307e-07</code></pre>
+</div>
+</div>
+<p>Dodatkowym potwierdzeniem jest test mnożników Lagrange’a na obecność efektów ARCH (test ARCH-LM). Wartość <em>p-value</em> bliska 0 oznacza silne odrzucenie hipotezy zerowej o braku efektów ARCH. Powyższe wyniki wskazują więc na występowanie warunkowej heteroskedastyczności, czyli zmiennej w czasie wariancji warunkowej. Jest to bezpośrednie uzasadnienie zastosowania modeli z rodziny GARCH w dalszej części analizy.</p>
+</section>
+</section>
+<section id="specyfikacja-modeli-garch-in-sample" class="level1" data-number="5">
+<h1 data-number="5"><span class="header-section-number">5</span> Specyfikacja modeli GARCH (<em>in-sample</em>)</h1>
+<p>Na podstawie wstępnej diagnostyki wykazano, że szereg stóp zwrotu nie posiada istotnej autokorelacji liniowej, co pozwala na zastosowanie stałej w równaniu średniej (model ARMA(0,0)). Z kolei silne odrzucenie normalności rozkładu (test Jarque-Bera) skłania do wykorzystania rozkładu t-Studenta (<code>std</code>) dla reszt modelu, który lepiej radzi sobie z modelowaniem “grubych ogonów”.</p>
+<p>Do analizy wybrano trzy warianty modeli z rodziny GARCH:</p>
+<ol type="1">
+<li><strong>Standardowy sGARCH(1,1)</strong> – podstawowy model zakładający symetryczną reakcję wariancji na szoki.</li>
+<li><strong>Wykładniczy eGARCH(1,1)</strong> – model pozwalający uchwycić tzw. efekt dźwigni (asymetryczny wpływ dodatnich i ujemnych szoków na zmienność).</li>
+<li><strong>GJR-GARCH(1,1)</strong> - alternatywna specyfikacja modelu uwzględniająca efekt dźwigni. Wprowadza mechanizm asymetrii poprzez dodanie zmiennej binarnej oznaczającej negatywny szok, podczas gdy eGARCH modeluje logarytm wariancji</li>
+</ol>
+</section>
+<section id="estymacja-in-sample" class="level1" data-number="6">
+<h1 data-number="6"><span class="header-section-number">6</span> Estymacja <em>in-sample</em></h1>
+<p><a href="#tbl-coef" class="quarto-xref">Tabela&nbsp;1</a> przedstawia wyestymowane parametry modeli GARCH wraz z informacją o ich istotności. We wszystkich trzech modelach współczynnik średniej <span class="math inline">\(\mu\)</span> jest nieistotny statystycznie - średnia stopa zwrotu nie różni się istotnie od zera. Z kolei wysoce istotny (<em>p-value</em> &lt; 0.01) we wszystkich specyfikacjach okazał się parametr kształtu rozkładu t-Studenta (<code>shape</code>), przyjmujący wartości bliskie 4, co potwierdza występowanie zjawiska “grubych ogonów” i silnie odrzuca założenie o normalności rozkładu. W klasycznym modelu sGARCH(1,1) parametry <span class="math inline">\(\alpha_1\)</span> (reakcja na bieżące szoki) oraz <span class="math inline">\(\beta_1\)</span> (pamięć wariancji) są w pełni istotne statystycznie, a ich wysokie wartości wskazują na silne utrzymywanie się zmienności w czasie.</p>
+<p>Parametry odpowiadające za asymetrię nie potwierdzają występowania efektu dźwigni. W modelu GJR-GARCH współczynnik <span class="math inline">\(\gamma_1\)</span> wynosi −0.041 i jest nieistotny (p = 0.465), a w modelu EGARCH nieistotny pozostaje <span class="math inline">\(\alpha_1\)</span> = 0.033 (p = 0.195), odpowiadający za reakcję wariancji na znak szoku. Istotny jest wyłącznie parametr <span class="math inline">\(\gamma_1\)</span> = 0.278 (p &lt; 0.001), opisujący reakcję na wielkość szoku.</p>
+<div class="cell">
+<div id="tbl-coef" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-coef-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Tabela&nbsp;1: Estymacje parametrów modeli GARCH
+</figcaption>
+<div aria-describedby="tbl-coef-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<div id="ydttyhrvey" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#ydttyhrvey table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#ydttyhrvey thead, #ydttyhrvey tbody, #ydttyhrvey tfoot, #ydttyhrvey tr, #ydttyhrvey td, #ydttyhrvey th {
+  border-style: none;
+}
+
+#ydttyhrvey p {
+  margin: 0;
+  padding: 0;
+}
+
+#ydttyhrvey .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#ydttyhrvey .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#ydttyhrvey .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#ydttyhrvey .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#ydttyhrvey .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#ydttyhrvey .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#ydttyhrvey .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#ydttyhrvey .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#ydttyhrvey .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#ydttyhrvey .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#ydttyhrvey .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#ydttyhrvey .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#ydttyhrvey .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#ydttyhrvey .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#ydttyhrvey .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ydttyhrvey .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#ydttyhrvey .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#ydttyhrvey .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#ydttyhrvey .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ydttyhrvey .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#ydttyhrvey .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ydttyhrvey .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#ydttyhrvey .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ydttyhrvey .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#ydttyhrvey .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#ydttyhrvey .gt_left {
+  text-align: left;
+}
+
+#ydttyhrvey .gt_center {
+  text-align: center;
+}
+
+#ydttyhrvey .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#ydttyhrvey .gt_font_normal {
+  font-weight: normal;
+}
+
+#ydttyhrvey .gt_font_bold {
+  font-weight: bold;
+}
+
+#ydttyhrvey .gt_font_italic {
+  font-style: italic;
+}
+
+#ydttyhrvey .gt_super {
+  font-size: 65%;
+}
+
+#ydttyhrvey .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#ydttyhrvey .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#ydttyhrvey .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#ydttyhrvey .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#ydttyhrvey .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#ydttyhrvey .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#ydttyhrvey .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#ydttyhrvey .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#ydttyhrvey div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table cell caption-top table table-sm table-striped small" data-quarto-bootstrap="false">
+<thead>
+<tr class="gt_col_headings header">
+<th id="a::stub" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col"></th>
+<th id="sGARCH(1,1)" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">sGARCH(1,1)</th>
+<th id="GJR-GARCH(1,1)" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">GJR-GARCH(1,1)</th>
+<th id="eGARCH(1,1)" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col">eGARCH(1,1)</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<th id="stub_1_1" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">mu</th>
+<td class="gt_row gt_left" headers="stub_1_1 sGARCH(1,1)">-0.0002</td>
+<td class="gt_row gt_left" headers="stub_1_1 GJR-GARCH(1,1)">-0.0001</td>
+<td class="gt_row gt_left" headers="stub_1_1 eGARCH(1,1)">0.0000</td>
+</tr>
+<tr class="even">
+<th id="stub_1_2" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">omega</th>
+<td class="gt_row gt_left" headers="stub_1_2 sGARCH(1,1)">0.0003**</td>
+<td class="gt_row gt_left" headers="stub_1_2 GJR-GARCH(1,1)">0.0003**</td>
+<td class="gt_row gt_left" headers="stub_1_2 eGARCH(1,1)">-0.5037*</td>
+</tr>
+<tr class="odd">
+<th id="stub_1_3" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">alpha1</th>
+<td class="gt_row gt_left" headers="stub_1_3 sGARCH(1,1)">0.1774***</td>
+<td class="gt_row gt_left" headers="stub_1_3 GJR-GARCH(1,1)">0.1963***</td>
+<td class="gt_row gt_left" headers="stub_1_3 eGARCH(1,1)">0.0333</td>
+</tr>
+<tr class="even">
+<th id="stub_1_4" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">beta1</th>
+<td class="gt_row gt_left" headers="stub_1_4 sGARCH(1,1)">0.7140***</td>
+<td class="gt_row gt_left" headers="stub_1_4 GJR-GARCH(1,1)">0.7217***</td>
+<td class="gt_row gt_left" headers="stub_1_4 eGARCH(1,1)">0.9185***</td>
+</tr>
+<tr class="odd">
+<th id="stub_1_5" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">shape</th>
+<td class="gt_row gt_left" headers="stub_1_5 sGARCH(1,1)">4.0650***</td>
+<td class="gt_row gt_left" headers="stub_1_5 GJR-GARCH(1,1)">4.0630***</td>
+<td class="gt_row gt_left" headers="stub_1_5 eGARCH(1,1)">4.0897***</td>
+</tr>
+<tr class="even">
+<th id="stub_1_6" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">gamma1</th>
+<td class="gt_row gt_left" headers="stub_1_6 sGARCH(1,1)">-</td>
+<td class="gt_row gt_left" headers="stub_1_6 GJR-GARCH(1,1)">-0.0412</td>
+<td class="gt_row gt_left" headers="stub_1_6 eGARCH(1,1)">0.2784***</td>
+</tr>
+</tbody><tfoot>
+<tr class="gt_sourcenotes odd">
+<td colspan="4" class="gt_sourcenote">Uwaga: Wykorzystano odporne błędy standardowe (robust standard errors). Istotność statystyczna: *** p &lt; 0.01, ** p &lt; 0.05, * p &lt; 0.10.</td>
+</tr>
+</tfoot>
+
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>Porównanie kryteriów informacyjnych w tabeli <a href="#tbl-info-criteria" class="quarto-xref">2</a> wskazuje jednoznacznie na najlepsze dopasowanie modelu eGARCH (najwyższa log-wiarygodność, najniższe BIC i AIC), jednak różnice nie są znaczne.</p>
+<p>Diagnostyka standaryzowanych reszt nie wskazuje na istotne problemy ze specyfikacją żadnego z modeli. Testy Ljunga-Ljung-Boxa dla standaryzowanych reszt nie wykazują istotnej autokorelacji, a analogiczne testy przeprowadzone dla kwadratów standaryzowanych reszt oraz testy ARCH-LM nie wskazują na pozostające efekty ARCH. Oznacza to, że zastosowane modele skutecznie opisują znaczną część zależności występującej w warunkowej wariancji szeregu.</p>
+<div class="cell">
+<div id="tbl-info-criteria" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-info-criteria-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Tabela&nbsp;2: Kryteria informacyjne analizowanych modeli
+</figcaption>
+<div aria-describedby="tbl-info-criteria-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<div id="xtradvtxmb" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#xtradvtxmb table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#xtradvtxmb thead, #xtradvtxmb tbody, #xtradvtxmb tfoot, #xtradvtxmb tr, #xtradvtxmb td, #xtradvtxmb th {
+  border-style: none;
+}
+
+#xtradvtxmb p {
+  margin: 0;
+  padding: 0;
+}
+
+#xtradvtxmb .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#xtradvtxmb .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#xtradvtxmb .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#xtradvtxmb .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#xtradvtxmb .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#xtradvtxmb .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#xtradvtxmb .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#xtradvtxmb .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#xtradvtxmb .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#xtradvtxmb .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#xtradvtxmb .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#xtradvtxmb .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#xtradvtxmb .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#xtradvtxmb .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#xtradvtxmb .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xtradvtxmb .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#xtradvtxmb .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#xtradvtxmb .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#xtradvtxmb .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xtradvtxmb .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#xtradvtxmb .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xtradvtxmb .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#xtradvtxmb .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xtradvtxmb .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#xtradvtxmb .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#xtradvtxmb .gt_left {
+  text-align: left;
+}
+
+#xtradvtxmb .gt_center {
+  text-align: center;
+}
+
+#xtradvtxmb .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#xtradvtxmb .gt_font_normal {
+  font-weight: normal;
+}
+
+#xtradvtxmb .gt_font_bold {
+  font-weight: bold;
+}
+
+#xtradvtxmb .gt_font_italic {
+  font-style: italic;
+}
+
+#xtradvtxmb .gt_super {
+  font-size: 65%;
+}
+
+#xtradvtxmb .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#xtradvtxmb .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#xtradvtxmb .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#xtradvtxmb .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#xtradvtxmb .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#xtradvtxmb .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#xtradvtxmb .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#xtradvtxmb .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#xtradvtxmb div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table cell caption-top table table-sm table-striped small" data-quarto-bootstrap="false">
+<thead>
+<tr class="gt_col_headings header">
+<th id="a::stub" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col"></th>
+<th id="logLik" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">logLik</th>
+<th id="AIC" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">AIC</th>
+<th id="BIC" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">BIC</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<th id="stub_1_1" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">sGARCH(1,1)</th>
+<td class="gt_row gt_right" headers="stub_1_1 logLik">2 907.3</td>
+<td class="gt_row gt_right" headers="stub_1_1 AIC">−3.4675</td>
+<td class="gt_row gt_right" headers="stub_1_1 BIC">−3.4513</td>
+</tr>
+<tr class="even">
+<th id="stub_1_2" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">GJR-GARCH(1,1)</th>
+<td class="gt_row gt_right" headers="stub_1_2 logLik">2 907.6</td>
+<td class="gt_row gt_right" headers="stub_1_2 AIC">−3.4667</td>
+<td class="gt_row gt_right" headers="stub_1_2 BIC">−3.4472</td>
+</tr>
+<tr class="odd">
+<th id="stub_1_3" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">eGARCH(1,1)</th>
+<td class="gt_row gt_right" headers="stub_1_3 logLik">2 916.0</td>
+<td class="gt_row gt_right" headers="stub_1_3 AIC">−3.4766</td>
+<td class="gt_row gt_right" headers="stub_1_3 BIC">−3.4572</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+</section>
+<section id="prognozowanie-value-at-risk-out-of-sample" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> Prognozowanie <em>Value-at-Risk</em> (<em>out-of-sample</em>)</h1>
+<p>W celu oceny jakości prognoz ryzyka przeprowadzono analizę <em>Value-at-Risk</em> w okresie <em>out-of-sample</em> – 251 dni. Dla każdego z trzech modeli – sGARCH, eGARCH oraz GJR-GARCH – zastosowano ruchome okno estymacyjne o długości 1000 obserwacji. Parametry modeli były ponownie estymowane każdego dnia, a następnie wyznaczano prognozę VaR na jeden dzień naprzód. Analizę przeprowadzono dla poziomów ufności 95% i 99%.</p>
+<p>Zestawienie liczby przekroczeń prognozowanego progu VaR przez rzeczywiste stopy zwrotu portfela (tzw. <em>exceedances</em>) prezentuje <a href="#tbl-exceedance" class="quarto-xref">Tabela&nbsp;3</a>. Dla poziomu ufności 95% wartość oczekiwana wynosiła około 12,6 przekroczeń. Wyniki wskazują, że wszystkie estymowane modele przyjęły postawę konserwatywną (przeszacowywały ryzyko) – rzeczywista liczba przekroczeń wyniosła od 6 dla modelu sGARCH (2,39% dni) do maksymalnie 8 dla modelu eGARCH (3,19% dni). Z kolei dla bardziej restrykcyjnego poziomu ufności 99%, gdzie spodziewano się 2,51 przekroczeń, najdokładniejszy okazał się model eGARCH, który odnotował dokładnie 2 przekroczenia (wskaźnik na poziomie blisko 0,8%). Pozostałe modele (sGARCH i GJR-GARCH) zanotowały po jednym przekroczeniu.</p>
+<div class="cell">
+<div id="tbl-exceedance" class="cell quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-tbl figure">
+<figcaption class="quarto-float-caption-top quarto-float-caption quarto-float-tbl" id="tbl-exceedance-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Tabela&nbsp;3: Liczba przekroczeń Value at Risk
+</figcaption>
+<div aria-describedby="tbl-exceedance-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<div class="cell-output-display">
+<div id="fpseoncmec" style="padding-left:0px;padding-right:0px;padding-top:10px;padding-bottom:10px;overflow-x:auto;overflow-y:auto;width:auto;height:auto;">
+<style>#fpseoncmec table {
+  font-family: system-ui, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#fpseoncmec thead, #fpseoncmec tbody, #fpseoncmec tfoot, #fpseoncmec tr, #fpseoncmec td, #fpseoncmec th {
+  border-style: none;
+}
+
+#fpseoncmec p {
+  margin: 0;
+  padding: 0;
+}
+
+#fpseoncmec .gt_table {
+  display: table;
+  border-collapse: collapse;
+  line-height: normal;
+  margin-left: auto;
+  margin-right: auto;
+  color: #333333;
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  background-color: #FFFFFF;
+  width: auto;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #A8A8A8;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #A8A8A8;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_caption {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+#fpseoncmec .gt_title {
+  color: #333333;
+  font-size: 125%;
+  font-weight: initial;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-color: #FFFFFF;
+  border-bottom-width: 0;
+}
+
+#fpseoncmec .gt_subtitle {
+  color: #333333;
+  font-size: 85%;
+  font-weight: initial;
+  padding-top: 3px;
+  padding-bottom: 5px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-color: #FFFFFF;
+  border-top-width: 0;
+}
+
+#fpseoncmec .gt_heading {
+  background-color: #FFFFFF;
+  text-align: center;
+  border-bottom-color: #FFFFFF;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_bottom_border {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_col_headings {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_col_heading {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+  overflow-x: hidden;
+}
+
+#fpseoncmec .gt_column_spanner_outer {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: normal;
+  text-transform: inherit;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+#fpseoncmec .gt_column_spanner_outer:first-child {
+  padding-left: 0;
+}
+
+#fpseoncmec .gt_column_spanner_outer:last-child {
+  padding-right: 0;
+}
+
+#fpseoncmec .gt_column_spanner {
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: bottom;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  overflow-x: hidden;
+  display: inline-block;
+  width: 100%;
+}
+
+#fpseoncmec .gt_spanner_row {
+  border-bottom-style: hidden;
+}
+
+#fpseoncmec .gt_group_heading {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  text-align: left;
+}
+
+#fpseoncmec .gt_empty_group_heading {
+  padding: 0.5px;
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  vertical-align: middle;
+}
+
+#fpseoncmec .gt_from_md > :first-child {
+  margin-top: 0;
+}
+
+#fpseoncmec .gt_from_md > :last-child {
+  margin-bottom: 0;
+}
+
+#fpseoncmec .gt_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  margin: 10px;
+  border-top-style: solid;
+  border-top-width: 1px;
+  border-top-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 1px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 1px;
+  border-right-color: #D3D3D3;
+  vertical-align: middle;
+  overflow-x: hidden;
+}
+
+#fpseoncmec .gt_stub {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#fpseoncmec .gt_stub_row_group {
+  color: #333333;
+  background-color: #FFFFFF;
+  font-size: 100%;
+  font-weight: initial;
+  text-transform: inherit;
+  border-right-style: solid;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+  padding-left: 5px;
+  padding-right: 5px;
+  vertical-align: top;
+}
+
+#fpseoncmec .gt_row_group_first td {
+  border-top-width: 2px;
+}
+
+#fpseoncmec .gt_row_group_first th {
+  border-top-width: 2px;
+}
+
+#fpseoncmec .gt_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#fpseoncmec .gt_first_summary_row {
+  border-top-style: solid;
+  border-top-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_first_summary_row.thick {
+  border-top-width: 2px;
+}
+
+#fpseoncmec .gt_last_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_grand_summary_row {
+  color: #333333;
+  background-color: #FFFFFF;
+  text-transform: inherit;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#fpseoncmec .gt_first_grand_summary_row {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-top-style: double;
+  border-top-width: 6px;
+  border-top-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_last_grand_summary_row_top {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  border-bottom-style: double;
+  border-bottom-width: 6px;
+  border-bottom-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_striped {
+  background-color: rgba(128, 128, 128, 0.05);
+}
+
+#fpseoncmec .gt_table_body {
+  border-top-style: solid;
+  border-top-width: 2px;
+  border-top-color: #D3D3D3;
+  border-bottom-style: solid;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_footnotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_footnote {
+  margin: 0px;
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#fpseoncmec .gt_sourcenotes {
+  color: #333333;
+  background-color: #FFFFFF;
+  border-bottom-style: none;
+  border-bottom-width: 2px;
+  border-bottom-color: #D3D3D3;
+  border-left-style: none;
+  border-left-width: 2px;
+  border-left-color: #D3D3D3;
+  border-right-style: none;
+  border-right-width: 2px;
+  border-right-color: #D3D3D3;
+}
+
+#fpseoncmec .gt_sourcenote {
+  font-size: 90%;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+#fpseoncmec .gt_left {
+  text-align: left;
+}
+
+#fpseoncmec .gt_center {
+  text-align: center;
+}
+
+#fpseoncmec .gt_right {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#fpseoncmec .gt_font_normal {
+  font-weight: normal;
+}
+
+#fpseoncmec .gt_font_bold {
+  font-weight: bold;
+}
+
+#fpseoncmec .gt_font_italic {
+  font-style: italic;
+}
+
+#fpseoncmec .gt_super {
+  font-size: 65%;
+}
+
+#fpseoncmec .gt_footnote_marks {
+  font-size: 75%;
+  vertical-align: 0.4em;
+  position: initial;
+}
+
+#fpseoncmec .gt_asterisk {
+  font-size: 100%;
+  vertical-align: 0;
+}
+
+#fpseoncmec .gt_indent_1 {
+  text-indent: 5px;
+}
+
+#fpseoncmec .gt_indent_2 {
+  text-indent: 10px;
+}
+
+#fpseoncmec .gt_indent_3 {
+  text-indent: 15px;
+}
+
+#fpseoncmec .gt_indent_4 {
+  text-indent: 20px;
+}
+
+#fpseoncmec .gt_indent_5 {
+  text-indent: 25px;
+}
+
+#fpseoncmec .katex-display {
+  display: inline-flex !important;
+  margin-bottom: 0.75em !important;
+}
+
+#fpseoncmec div.Reactable > div.rt-table > div.rt-thead > div.rt-tr.rt-tr-group-header > div.rt-th-group:after {
+  height: 0px !important;
+}
+</style>
+
+<table class="gt_table cell caption-top table table-sm table-striped small" data-quarto-bootstrap="false">
+<thead>
+<tr class="gt_col_headings header">
+<th id="a::stub" class="gt_col_heading gt_columns_bottom_border gt_left" data-quarto-table-cell-role="th" scope="col"></th>
+<th id="n" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">n</th>
+<th id="expected-95%" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">expected 95%</th>
+<th id="actual-95%" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">actual 95%</th>
+<th id="rate-95%" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">rate 95%</th>
+<th id="expected-99%" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">expected 99%</th>
+<th id="actual-99%" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">actual 99%</th>
+<th id="rate-99%" class="gt_col_heading gt_columns_bottom_border gt_right" data-quarto-table-cell-role="th" scope="col">rate 99%</th>
+</tr>
+</thead>
+<tbody class="gt_table_body">
+<tr class="odd">
+<th id="stub_1_1" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">GJR-GARCH</th>
+<td class="gt_row gt_right" headers="stub_1_1 n">251</td>
+<td class="gt_row gt_right" headers="stub_1_1 expected 95%">12.6</td>
+<td class="gt_row gt_right" headers="stub_1_1 actual 95%">7</td>
+<td class="gt_row gt_right" headers="stub_1_1 rate 95%">0.0279</td>
+<td class="gt_row gt_right" headers="stub_1_1 expected 99%">2.51</td>
+<td class="gt_row gt_right" headers="stub_1_1 actual 99%">1</td>
+<td class="gt_row gt_right" headers="stub_1_1 rate 99%">0.00398</td>
+</tr>
+<tr class="even">
+<th id="stub_1_2" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">eGARCH</th>
+<td class="gt_row gt_right" headers="stub_1_2 n">251</td>
+<td class="gt_row gt_right" headers="stub_1_2 expected 95%">12.6</td>
+<td class="gt_row gt_right" headers="stub_1_2 actual 95%">8</td>
+<td class="gt_row gt_right" headers="stub_1_2 rate 95%">0.0319</td>
+<td class="gt_row gt_right" headers="stub_1_2 expected 99%">2.51</td>
+<td class="gt_row gt_right" headers="stub_1_2 actual 99%">2</td>
+<td class="gt_row gt_right" headers="stub_1_2 rate 99%">0.00797</td>
+</tr>
+<tr class="odd">
+<th id="stub_1_3" class="gt_row gt_left gt_stub" data-quarto-table-cell-role="th" scope="row">sGARCH</th>
+<td class="gt_row gt_right" headers="stub_1_3 n">251</td>
+<td class="gt_row gt_right" headers="stub_1_3 expected 95%">12.6</td>
+<td class="gt_row gt_right" headers="stub_1_3 actual 95%">6</td>
+<td class="gt_row gt_right" headers="stub_1_3 rate 95%">0.0239</td>
+<td class="gt_row gt_right" headers="stub_1_3 expected 99%">2.51</td>
+<td class="gt_row gt_right" headers="stub_1_3 actual 99%">1</td>
+<td class="gt_row gt_right" headers="stub_1_3 rate 99%">0.00398</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+</figure>
+</div>
+</div>
+<p>Wizualizację dynamiki prognoz na tle rzeczywistych stóp zwrotu (dla <span class="math inline">\(\alpha = 0.05\)</span>) przedstawiono na wykresie <a href="#fig-var-plot" class="quarto-xref">7</a>. Prognozy wszystkich trzech modeli mają bardzo podobny przebieg i wyraźnie obniżają się w okresach podwyższonej zmienności. Przekroczenia VaR występują w kilku okresach charakteryzujących się większymi ujemnymi zmianami stóp zwrotu, co wskazuje, że modele reagują na wzrost ryzyka poprzez zwiększenie prognozowanego poziomu potencjalnej straty.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div id="fig-var-plot" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-var-plot-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+<img src="zasc_report_files/figure-html/fig-var-plot-1.png" class="img-fluid figure-img" width="672">
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-var-plot-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Rysunek&nbsp;7: Prognozy VaR 95% i przekroczenia
+</figcaption>
+</figure>
+</div>
+</div>
+</div>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Skopiowano!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Skopiowano!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

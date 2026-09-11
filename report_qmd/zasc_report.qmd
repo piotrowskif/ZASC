@@ -1,0 +1,415 @@
+---
+title: "Analiza porównawcza ryzyka w modelach GARCH"
+author:
+  - name: "Filip Piotrowski"
+    affiliation: "Wydział Nauk Ekonomicznych UW"
+  - name: "Marcel Marszałek"
+date: 2026-09-10
+format: 
+  html:
+    theme: default
+    toc: true
+    lang: pl
+    number-sections: true
+    localization:
+      figure-title: "Wykres"
+      table-title: "Tabela"
+execute: 
+  include: true
+  echo: false
+  warning: false
+  message: false
+---
+
+```{css}
+/*| echo: false */
+p {
+  text-align: justify
+}
+```
+
+```{r setup}
+
+source("../scripts/00_setup.R")
+# source("../scripts/01_download_data.R")
+source("../scripts/02_preprocess_data.R")
+
+```
+
+<!-- quarto render report_qmd/zasc_report.qmd --to pdf -->
+
+# Streszczenie
+
+Celem badania była ocena wpływu specyfikacji modeli z rodziny GARCH na pomiar i prognozowanie ryzyka portfela kryptowalutowego. Analizę przeprowadzono dla portfela złożonego z czterech kryptowalut: Filecoin, Mina, MX Token oraz Prom, którego dzienne wagi były proporcjonalne do kapitalizacji rynkowej poszczególnych aktywów. Porównano trzy specyfikacje: model bazowy sGARCH(1,1) oraz dwa warianty dopuszczające asymetryczną reakcję wariancji na szoki, GJR-GARCH i eGARCH, w każdym przypadku z warunkowym rozkładem t-Studenta. Analiza obejmuje porównanie oszacowań warunkowej wariancji w okresie in-sample oraz ocenę prognoz wartości narażonej na ryzyko w okresie out-of-sample, wyznaczonych metodą okna kroczącego.
+
+Uzyskane wyniki nie potwierdzają występowania efektu dźwigni -- parametry asymetrii pozostają nieistotne w obu modelach rozszerzonych. Wszystkie modele poprawnie opisały podstawową dynamikę zmienności, natomiast eGARCH uzyskał najlepsze dopasowanie w próbie in-sample według log-wiarygodności oraz kryteriów informacyjnych AIC i BIC. W okresie prognozy wszystkie trzy modele okazały się konserwatywne, przy czym pokrycie uzyskane przez eGARCH było najbliższe nominalnemu.
+
+# Wprowadzenie
+
+Pomiar ryzyka na rynku kryptowalut stanowi wyzwanie odmienne od klasycznych rynków finansowych. Zmienność jest tu wielokrotnie wyższa, obrót odbywa się w trybie ciągłym siedem dni w tygodniu, a struktura rynku pozostaje rozproszona między dziesiątkami giełd o zróżnicowanej płynności. Standardowe miary ryzyka oparte na założeniu stałej wariancji są w tych warunkach nieadekwatne, co czyni modele warunkowej heteroskedastyczności naturalnym narzędziem analizy.
+
+Celem badania jest porównanie, w jakim stopniu wybór specyfikacji z rodziny GARCH wpływa na oszacowania warunkowej wariancji portfela kryptowalutowego oraz na jakość wynikających z nich prognoz *Value-at-Risk*. Praca składa się z części poświęconej danym i konstrukcji portfela, wstępnej diagnostyki szeregu, estymacji i porównania modeli w okresie *in-sample*, oceny prognoz VaR w okresie *out-of-sample* oraz analizy wrażliwości wyników na przyjęte założenia.
+
+# Zbiór danych i konstrukcja portfela
+
+Przedmiotem analizy jest portfel czterech kryptowalut: Filecoin (FIL), Mina (MINA), MX Token (MX) oraz Prom (PROM). Wybór aktywów został dokonany na podstawie pierwszych liter imion i nazwisk autorów (czyli: F, P, M, M), tak aby kapitalizacja rynkowa kryptowalut była tego samego rzędu wielkości. Dane dzienne dotyczące cen oraz kapitalizacji rynkowej zostały pobrane za okres od 1 czerwca 2021 r. do 8 września 2026 r. (1925 obserwacji) z serwisu CoinMarketCap za pośrednictwem pakietu `crypto2`. 
+
+Dla każdej kryptowaluty wyznaczono dzienną prostą stopę zwrotu zgodnie ze wzorem: 
+
+$$
+r_{i,t} = \frac{P_{i,t}}{P_{i,t-1}}-1
+$$
+gdzie $P_{i,t}$ oznacza cenę zamknięcia kryptowaluty $i$ w dniu $t$.
+
+Następnie skonstruowano portfel ważony kapitalizacją rynkową. Udział kryptowaluty $i$ w portfelu w dniu $t$ określono jako
+
+$$ 
+w_{i,t}= \frac{MC_{i,t}} {\sum_{j=1}^{4}MC_{j,t}}
+$$
+
+gdzie $MC_{i,t}$ oznacza kapitalizację rynkową danego aktywa. Przy obliczaniu dziennej stopy zwrotu portfela wykorzystano wagi opóźnione o jeden dzień, dzięki czemu stopa zwrotu z dnia $t$ nie wykorzystuje informacji o kapitalizacji rynkowej obserwowanej dopiero na koniec tego samego dnia. Ostatecznie stopa zwrotu portfela została wyznaczona jako
+
+$$ 
+r_{p,t}=\sum_{i=1}^{4} w_{i,t-1}\times r_{i,t}
+$$
+
+Szereg czasowy dziennych stóp zwrotu z portfela podzielono na dwie części:
+
+- Próba ucząca (*in-sample*): obserwacje do 31 grudnia 2025 r. (1674 obserwacje -- 87% całej próby)
+- Próba testowa (*out-of-sample*): obserwacje od 1 stycznia 2026 r. (251 obserwacji -- 13% całej próby)
+
+
+# Eksploracyjna analiza danych
+
+## Składniki portfela
+
+Na rysunku -@fig-time-series-eda przedstawiono zmiany cen zamknięcia, kapitalizacji rynkowej oraz wag poszczególnych kryptowalut w czasie. Filecoin charakteryzuje się zdecydowanie największą kapitalizacją rynkową przez większość analizowanego okresu, co przekłada się na jego dominujący udział w portfelu. Udział ten pozostaje na ogół wyraźnie większy niż udziały pozostałych trzech aktywów, choć zmienia się w czasie. W szczególności widoczne są okresy, w których udział Miny lub MX Token zwiększa się kosztem Filecoina. Zmienność udziałów wskazuje, że konstrukcja portfela nie prowadzi do stałych wag, lecz pozwala na bieżąco odzwierciedlać względną wielkość poszczególnych aktywów.
+
+```{r fig-time-series-eda}
+#| fig-cap: "Waga, kapitalizacja rynkowa i cena zamknięcia 4 wybranych kryptowalut"
+
+ggplot(pivot_longer(crypto_df, cols = c("w", "market_cap", "close"), names_to = "metric")) +
+    geom_line(aes(x = timestamp, y = value, color = name)) +
+    facet_wrap(~metric, ncol = 1, scales = "free_y",
+               labeller = labeller(metric = c(
+                   "w" = "waga",
+                   "market_cap" = "Kapitalizacja rynkowa",
+                   "close" = "Cena zamknięcia"
+               ))) +
+    labs(x = "Czas", y = NULL, color = "Kryptowaluta") +
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+
+Histogramy przedstawione na rysunku -@fig-4-crypto-hist wskazują, że rozkłady wszystkich aktywów są skoncentrowane wokół zera. Zawarte pod histogramami wykresy dywanowe (ang. *rug plot*) ilustrują pojedyncze obserwacje, świadcząc o występowaniu obserwacji odstających. Rozkłady są więc wyraźnie bardziej skoncentrowane w centrum i jednocześnie mają relatywnie długie ogony niż sugerowałby rozkład normalny.
+
+```{r fig-4-crypto-hist}
+#| fig-cap: "Histogramy stóp zwrotu 4 wybranych kryptowalut"
+
+ggplot(crypto_df, aes(x = r_i, fill = name)) +
+    geom_histogram(color = "black", position = "stack") + 
+    geom_rug(alpha = 0.5, length = unit(0.1, "cm")) +
+    facet_wrap(~slug, ncol = 2) +
+    labs(x = "Stopa zwrotu", y = "Częstotoliwość", fill = "Kryptowaluta") +
+    theme_bw()
+```
+
+## Statystyki portfela (ważonej stopy zwrotu)
+
+Podstawowe statystyki dziennych stóp zwrotu portfela przedstawia poniższe zestawienie.
+
+```{r quantiles}
+# statistics
+summary(r_p_df$r_p)
+```
+
+Średnia dzienna stopa zwrotu wynosi −0,09 procent, co w skali całego okresu przekłada się na istotny spadek wartości portfela i odzwierciedla przecenę Filecoina. Rozstęp międzykwartylowy sięga blisko 4,8 punktu procentowego dziennie, co obrazuje skalę zmienności charakterystyczną dla tej klasy aktywów.
+
+@fig-r-time-series przedstawia szereg stóp zwrotu portfela oraz ich kwadratów, z zaznaczonym momentem podziału próby. Oba wykresy jednoznacznie wskazują na występowanie okresów o podwyższonej i obniżonej zmienności, co sugeruje zjawisko grupowania wariancji. Stanowi to pierwszą przesłankę do zastosowania modeli klasy GARCH.
+
+```{r fig-r-time-series}
+#| fig-cap: "Przebieg w czasie stóp zwrotu portfela oraz ich kwadratów"
+
+
+r_p_df |>
+    pivot_longer(cols = c(r_p, r_p2)) |>
+    ggplot() +
+    geom_line(aes(x = timestamp, y = value, color = "Stopy zwrotu")) +
+    geom_vline(aes(xintercept = split_date, color = "Podział train/test"),
+               linetype = "solid", linewidth = 0.8) +
+    scale_color_manual(
+        name = NULL,
+        values = c("Stopy zwrotu"            = "black",
+                   "Podział train/test"      = "red")
+    ) +
+    facet_wrap(~name, ncol = 1, scales = "free_y",
+               labeller = labeller(name = c(
+                   "r_p"  = "Stopy zwrotu portfela",
+                   "r_p2" = "Kwadraty stopy zwrotu"
+               ))) +
+    labs(x = "Czas", y = NULL) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+
+# Wstępna diagnostyka
+
+Aby zweryfikować zasadność zastosowania modeli z rodziny GARCH, przeprowadzono szereg testów statystycznych. Wszystkie poniższe testy zostały wykonane wyłącznie na próbie uczącej (*in-sample*).
+
+## Rozkład zmiennej modelowanej
+
+Na wykresie -@fig-r-dist przedstawiono empiryczną funkcję gęstości wyestymowaną za pomocą *kernel density estimation*, wraz z nałożonym teoretycznym rozkładem normalnym (czerwona linia). Rozkład stóp zwrotu jest silnie skupiony wokół zera, jednak widoczne są wyraźne obserwacje odstające oraz grubsze ogony niż w przypadku rozkładu normalnego, co sugeruje leptokurtyczność. 
+
+```{r fig-r-dist}
+#| fig-cap: "Rozkład empiryczny stóp zwrotu portfela"
+ggplot(r_p_df[r_p_df$sample == "train",], aes(x = r_p)) +
+    geom_density(fill = "lightblue", alpha = 0.6) +
+    stat_function(
+        fun  = dnorm,
+        args = list(mean = mean(r_train, na.rm = T),
+                    sd   = sd(r_train,   na.rm = T)),
+        color = "red", linewidth = 1
+    ) +
+    geom_boxplot(aes(y = -1), fill = "lightblue") +
+    theme_bw() +
+    labs(x = "Stopa zwrotu z portfela", y = "Gęstość")
+```
+
+Wniosek ten został dodatkowo potwierdzony testem Jarque-Bera:
+
+```{r jarque-bera-test}
+jarque.bera.test(r_train)
+```
+
+Hipoteza zerowa o normalności rozkładu została zatem zdecydowanie odrzucona. Wynik ten wskazuje, że przy modelowaniu stóp zwrotu nie należy zakładać bezwarunkowego rozkładu normalnego bez dodatkowego uzasadnienia. W szczególności obserwowana obecność grubych ogonów jest istotna z punktu widzenia dalszego modelowania ryzyka oraz estymacji Value-at-Risk.
+
+## Stacjonarność
+
+W kolejnym kroku zbadano stacjonarność szeregu stóp zwrotu. W rozszerzonym teście Dickey-Fullera na poziomie 5% odrzucono hipotezę zerową o obecności pierwiastka jednostkowego na rzecz hipotezy o stacjonarności szeregu. 
+
+```{r adf-test}
+adf.test(r_train)
+```
+
+Uzupełniająco przeprowadzono test KPSS: *p-value* = 0.1 nie daje podstaw do odrzucenia hipotezy zerowej o stacjonarności szeregu.
+
+```{r kpss}
+kpss.test(r_train)
+```
+
+Wyniki obu testów nie wskazują na problem niestacjonarności stóp zwrotu, co uzasadnia dalsze modelowanie bez konieczności dodatkowego różnicowania analizowanego szeregu.
+
+## Autokorelacja stóp zwrotu
+
+Funkcja ACF stóp zwrotu (@fig-r-acf) portfela nie wykazuje systematycznego wzorca. Poza opóźnieniem zerowym autokorelacje są na ogół niewielkie i w większości mieszczą się w granicach wyznaczonych przez przedziały ufności.
+
+```{r fig-r-acf}
+#| fig-cap: "Funkcja autokorelacji stóp zwrotu"
+acf(r_train, main = "ACF stóp zwrotu portfela")
+```
+
+Test Ljunga-Boxa nie pozwala odrzucić hipotezy o braku autokorelacji na standardowym poziomie istotności 5%. Oznacza to, że nie ma silnych dowodów na występowanie systematycznej zależności liniowej pomiędzy kolejnymi stopami zwrotu. Z punktu widzenia dalszego modelowania sugeruje to, że dynamika średniej może być stosunkowo prosta i nie wymaga rozbudowanej struktury ARMA.
+
+```{r ljung-box}
+Box.test(r_train, type = "Ljung-Box", lag = 10)
+```
+
+
+## Warunkowa heteroskedastyczność
+
+Najważniejszym krokiem przed estymacją modeli GARCH jest udowodnienie zjawiska grupowania wariancji (skupień zmienności). W tym celu obliczono funkcję ACF kwadratów stóp zwrotu (@fig-r-acf2). Współczynnik dla pierwszego opóźnienia wyraźnie przekracza granice przedziału ufności, a istotne wartości pojawiają się również przy wyższych opóźnieniach. Wskazuje to na obecność zależności w zmienności.
+
+```{r fig-r-acf2}
+#| fig-cap: "Funkcja autokorelacji kwadratów stóp zwrotu"
+acf(r_train^2, main = "ACF kwadratów stóp zwrotu")
+```
+
+Wynik ten został potwierdzony testem Boxa-Ljunga zastosowanym do kwadratów stóp zwrotu. *P-value* bliskie 0 pozwala odrzucić hipotezę zerową o braku autokorelacji kwadratów stóp zwrotu. 
+
+```{r ljung-box2}
+Box.test(r_train^2, type = "Ljung-Box", lag = 10)
+```
+
+```{r arch-test}
+ArchTest(r_train, lags = 10)
+```
+
+Dodatkowym potwierdzeniem jest test mnożników Lagrange’a na obecność efektów ARCH (test ARCH-LM). Wartość *p-value* bliska 0 oznacza silne odrzucenie hipotezy zerowej o braku efektów ARCH. Powyższe wyniki wskazują więc na występowanie warunkowej heteroskedastyczności, czyli zmiennej w czasie wariancji warunkowej. Jest to bezpośrednie uzasadnienie zastosowania modeli z rodziny GARCH w dalszej części analizy.
+
+# Specyfikacja modeli GARCH (*in-sample*)
+
+Na podstawie wstępnej diagnostyki wykazano, że szereg stóp zwrotu nie posiada istotnej autokorelacji liniowej, co pozwala na zastosowanie stałej w równaniu średniej (model ARMA(0,0)). Z kolei silne odrzucenie normalności rozkładu (test Jarque-Bera) skłania do wykorzystania rozkładu t-Studenta (`std`) dla reszt modelu, który lepiej radzi sobie z modelowaniem "grubych ogonów".
+
+Do analizy wybrano trzy warianty modeli z rodziny GARCH:
+
+1. **Standardowy sGARCH(1,1)** – podstawowy model zakładający symetryczną reakcję wariancji na szoki.
+2. **Wykładniczy eGARCH(1,1)** – model pozwalający uchwycić tzw. efekt dźwigni (asymetryczny wpływ dodatnich i ujemnych szoków na zmienność).
+3. **GJR-GARCH(1,1)** - alternatywna specyfikacja modelu uwzględniająca efekt dźwigni. Wprowadza mechanizm asymetrii poprzez dodanie zmiennej binarnej oznaczającej negatywny szok, podczas gdy eGARCH modeluje logarytm wariancji
+
+```{r specification}
+# sGARCH(1,1) with t-Student distribution
+spec_sgarch <- ugarchspec(
+    mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+    variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+    distribution.model = "std"
+)
+
+# eGARCH(1,1) with t-Student distribution
+spec_egarch <- ugarchspec(
+    mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+    variance.model = list(model = "eGARCH", garchOrder = c(1, 1)),
+    distribution.model = "std"
+)
+
+spec_gjr <- ugarchspec(
+    mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+    variance.model = list(model = "gjrGARCH", garchOrder = c(1, 1)),
+    distribution.model = "std"
+)
+```
+
+# Estymacja *in-sample*
+
+```{r model-fit}
+fit_sgarch <- ugarchfit(spec = spec_sgarch, data = r_train)
+fit_egarch <- ugarchfit(spec = spec_egarch, data = r_train)
+fit_gjr    <- ugarchfit(spec = spec_gjr,    data = r_train)
+```
+
+@tbl-coef przedstawia wyestymowane parametry modeli GARCH wraz z informacją o ich istotności. We wszystkich trzech modelach współczynnik średniej $\mu$ jest nieistotny statystycznie - średnia stopa zwrotu nie różni się istotnie od zera. Z kolei wysoce istotny (*p-value* < 0.01) we wszystkich specyfikacjach okazał się parametr kształtu rozkładu t-Studenta (`shape`), przyjmujący wartości bliskie 4, co potwierdza występowanie zjawiska "grubych ogonów" i silnie odrzuca założenie o normalności rozkładu. W klasycznym modelu sGARCH(1,1) parametry $\alpha_1$ (reakcja na bieżące szoki) oraz $\beta_1$ (pamięć wariancji) są w pełni istotne statystycznie, a ich wysokie wartości wskazują na silne utrzymywanie się zmienności w czasie. 
+
+Parametry odpowiadające za asymetrię nie potwierdzają występowania efektu dźwigni. W modelu GJR-GARCH współczynnik $\gamma_1$ wynosi −0.041 i jest nieistotny (p = 0.465), a w modelu EGARCH nieistotny pozostaje $\alpha_1$ = 0.033 (p = 0.195), odpowiadający za reakcję wariancji na znak szoku. Istotny jest wyłącznie parametr $\gamma_1$ = 0.278 (p < 0.001), opisujący reakcję na wielkość szoku.
+
+```{r tbl-coef}
+#| tbl-cap: "Estymacje parametrów modeli GARCH"
+
+# Construct the comparison table
+table_df <- tibble(
+  parameter = unique(c(names(coef(fit_sgarch)),
+                       names(coef(fit_gjr)),
+                       names(coef(fit_egarch))))
+  ) |>
+  left_join(get_model_summary(fit_sgarch) |> 
+                rename(`sGARCH(1,1)` = formatted_est), by = "parameter") |>
+  left_join(get_model_summary(fit_gjr) |> 
+                rename(`GJR-GARCH(1,1)` = formatted_est), by = "parameter") |>
+  left_join(get_model_summary(fit_egarch) |> 
+                rename(`eGARCH(1,1)` = formatted_est), by = "parameter") |>
+  # Replace NA values (for parameters that don't exist in a specific model) with a dash
+  mutate(across(everything(), ~replace_na(.x, "-"))) 
+
+# Render with gt
+table_df |>
+  gt(rowname_col = "parameter") |>
+  cols_align(
+    align = "left",
+    columns = -parameter
+  ) |>
+  tab_source_note(
+    source_note = "Uwaga: Wykorzystano odporne błędy standardowe (robust standard errors). \n Istotność statystyczna: *** p < 0.01, ** p < 0.05, * p < 0.10."
+  )
+```
+
+Porównanie kryteriów informacyjnych w tabeli -@tbl-info-criteria wskazuje jednoznacznie na najlepsze dopasowanie modelu eGARCH (najwyższa log-wiarygodność, najniższe BIC i AIC), jednak różnice nie są znaczne. 
+
+Diagnostyka standaryzowanych reszt nie wskazuje na istotne problemy ze specyfikacją żadnego z modeli. Testy Ljunga-Ljung-Boxa dla standaryzowanych reszt nie wykazują istotnej autokorelacji, a analogiczne testy przeprowadzone dla kwadratów standaryzowanych reszt oraz testy ARCH-LM nie wskazują na pozostające efekty ARCH. Oznacza to, że zastosowane modele skutecznie opisują znaczną część zależności występującej w warunkowej wariancji szeregu.
+
+```{r tbl-info-criteria}
+#| tbl-cap: "Kryteria informacyjne analizowanych modeli"
+
+tibble(
+    model = c(
+      "sGARCH(1,1)", 
+      "GJR-GARCH(1,1)", 
+      "eGARCH(1,1)"
+    ),
+    logLik = c(
+        likelihood(fit_sgarch), 
+        likelihood(fit_gjr), 
+        likelihood(fit_egarch)
+    ),
+    AIC = c(
+        infocriteria(fit_sgarch)[1], 
+        infocriteria(fit_gjr)[1], 
+        infocriteria(fit_egarch)[1]
+    ),
+    BIC = c(
+        infocriteria(fit_sgarch)[2], 
+        infocriteria(fit_gjr)[2], 
+        infocriteria(fit_egarch)[2]
+    )
+) |> 
+    gt(rowname_col = "model") |>
+    fmt_number(
+        columns = where(is.numeric),
+        # decimals = 4,
+        n_sigfig = 5, 
+        sep_mark = " "
+    )
+    # knitr::kable()
+```
+
+# Prognozowanie *Value-at-Risk* (*out-of-sample*)
+
+W celu oceny jakości prognoz ryzyka przeprowadzono analizę *Value-at-Risk* w okresie *out-of-sample* -- 251 dni. Dla każdego z trzech modeli -- sGARCH, eGARCH oraz GJR-GARCH -- zastosowano ruchome okno estymacyjne o długości 1000 obserwacji. Parametry modeli były ponownie estymowane każdego dnia, a następnie wyznaczano prognozę VaR na jeden dzień naprzód. Analizę przeprowadzono dla poziomów ufności 95% i 99%.
+
+Zestawienie liczby przekroczeń prognozowanego progu VaR przez rzeczywiste stopy zwrotu portfela (tzw. *exceedances*) prezentuje @tbl-exceedance. Dla poziomu ufności 95% wartość oczekiwana wynosiła około 12,6 przekroczeń. Wyniki wskazują, że wszystkie estymowane modele przyjęły postawę konserwatywną (przeszacowywały ryzyko) -- rzeczywista liczba przekroczeń wyniosła od 6 dla modelu sGARCH (2,39% dni) do maksymalnie 8 dla modelu eGARCH (3,19% dni). Z kolei dla bardziej restrykcyjnego poziomu ufności 99%, gdzie spodziewano się 2,51 przekroczeń, najdokładniejszy okazał się model eGARCH, który odnotował dokładnie 2 przekroczenia (wskaźnik na poziomie blisko 0,8%). Pozostałe modele (sGARCH i GJR-GARCH) zanotowały po jednym przekroczeniu.
+
+```{r forecast}
+#| message: false
+#| warning: false
+# source("../scripts/03_value_at_risk.R")
+var_df <- read_csv2(here("data/Var_one_table.csv"))
+```
+
+```{r tbl-exceedance}
+#| tbl-cap: "Liczba przekroczeń Value at Risk"
+exceedance_summary_df <- var_df |>
+    group_by(model) |>
+    summarise(
+        n = n(),
+
+        `expected 95%` = n * 0.05,
+        `actual 95%` = sum(actual < VaR_95),
+        `rate 95%` = mean(actual < VaR_95),
+
+        `expected 99%` = n * 0.01,
+        `actual 99%` = sum(actual < VaR_99),
+        `rate 99%` = mean(actual < VaR_99),
+    )
+
+exceedance_summary_df |> 
+    gt(rowname_col = "model") |> 
+    fmt_number(columns = where(is.integer), decimals = 0) |> 
+    fmt_number(columns = where(is.double), n_sigfig = 3)
+```
+
+Wizualizację dynamiki prognoz na tle rzeczywistych stóp zwrotu (dla $\alpha = 0.05$) przedstawiono na wykresie -@fig-var-plot. Prognozy wszystkich trzech modeli mają bardzo podobny przebieg i wyraźnie obniżają się w okresach podwyższonej zmienności. Przekroczenia VaR występują w kilku okresach charakteryzujących się większymi ujemnymi zmianami stóp zwrotu, co wskazuje, że modele reagują na wzrost ryzyka poprzez zwiększenie prognozowanego poziomu potencjalnej straty.
+
+```{r fig-var-plot}
+#| fig-cap: "Prognozy VaR 95% i przekroczenia"
+
+var_long_df <- var_df |>
+    select(timestamp, model, actual, VaR_95) |>
+    pivot_longer(cols = VaR_95, names_to = "level", values_to = "VaR") |>
+    mutate(exceedance = actual < VaR)
+
+ggplot(var_long_df, aes(x = timestamp)) +
+    geom_line(aes(y = actual), linewidth = 0.4, color = "gray60") +
+    geom_line(aes(y = VaR, color = model, linetype = level), linewidth = 0.8) +
+    geom_point(data = filter(var_long_df, exceedance), 
+               aes(y = actual), size = 2, color = "black") +
+    facet_wrap(~model, ncol = 1) +
+    labs(x = "Czas", y = "Stopa zwrotu / VaR") +
+    theme_bw() +
+    theme(legend.position = "none")
+
+```
+
+# Podsumowanie
+
+Przeprowadzone badanie potwierdziło występowanie charakterystycznych dla finansowych szeregów czasowych właściwości, które uzasadniają zastosowanie modeli klasy GARCH. Stopy zwrotu portfela okazały się stacjonarne i nie wykazywały istotnej autokorelacji, podczas gdy ich kwadraty charakteryzowały się silną zależnością czasową. Oznacza to, że zmienność portfela nie jest stała w czasie, lecz występują okresy jej podwyższonego i obniżonego poziomu.
+
+Spośród analizowanych modeli eGARCH osiągnął najlepsze dopasowanie *in-sample*. Uzyskał najwyższą wartość log-wiarygodności oraz najniższe wartości AIC i BIC. W analizie VaR wszystkie trzy modele dawały stosunkowo konserwatywne prognozy, tj. liczba rzeczywistych przekroczeń była niższa od oczekiwanej. eGARCH charakteryzował się jednak liczbą przekroczeń najbliższą wartości oczekiwanej zarówno dla VaR 95%, jak i VaR 99%. Ostateczny wybór modelu powinien zatem opierać się przede wszystkim na ocenie prognozy VaR wykonanej na okresie testowym, a nie wyłącznie na kryteriach dopasowania *in-sample*.
+
+Całość wyników wskazuje, że uwzględnienie zmienności warunkowej jest istotne dla prawidłowej oceny ryzyka portfela kryptowalut, a wybór specyfikacji GARCH może wpływać zarówno na oszacowania wariancji, jak i na prognozy ekstremalnych strat. Szczególnie istotne jest zatem zestawienie jakości dopasowania modeli z ich rzeczywistą skutecznością prognozowania ryzyka poza próbą.
